@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.31.1](https://github.com/openai/openai-python/compare/v3.31.0...v3.31.1) (2026-10-14)
+
+
+### Chores
+
+* **api:** clarify Decisions request and response fields ([#4079](https://github.com/openai/openai-python/issues/4079)) ([d42accb](https://github.com/openai/openai-python/commit/d42accb1a2d1b75b79edf694b8bfee78c4e90e6a))
+
 ## [3.31.0](https://github.com/openai/openai-python/compare/v3.30.0...v3.31.0) (2026-10-14)
 
 
