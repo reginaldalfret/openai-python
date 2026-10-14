@@ -9,6 +9,7 @@ from inline_snapshot import snapshot
 from tests import respx2
 from openai import OpenAI, OAuthError
 from openai.auth import WorkloadIdentity, WorkloadIdentityAuth, SubjectTokenWorkloadIdentity
+from openai._exceptions import SubjectTokenProviderError
 from tests.respx2.models import Call
 from openai.auth._workload import (
     gcp_id_token_provider,
@@ -198,3 +199,51 @@ def test_gcp_id_token_provider() -> None:
 
     assert provider["token_type"] == "id"
     assert provider["get_token"]() == "gcp-token"
+
+
+def test_k8s_service_account_token_provider_empty_file_preserves_error(tmp_path: Path) -> None:
+    token_file = tmp_path / "empty_token"
+    token_file.write_text("")
+
+    provider = k8s_service_account_token_provider(token_file)
+
+    with pytest.raises(SubjectTokenProviderError) as exc_info:
+        provider["get_token"]()
+
+    assert "is empty" in str(exc_info.value)
+    assert exc_info.value.__cause__ is None
+
+
+@respx2.mock
+def test_azure_managed_identity_token_provider_error_preserves_response() -> None:
+    respx2.get("http://169.254.169.254/metadata/identity/oauth2/token").mock(
+        return_value=httpx2.Response(500, text="Internal Server Error")
+    )
+
+    provider = azure_managed_identity_token_provider()
+
+    with pytest.raises(SubjectTokenProviderError) as exc_info:
+        provider["get_token"]()
+
+    assert exc_info.value.response is not None
+    assert exc_info.value.response.status_code == 500
+    assert str(exc_info.value) == "Failed to fetch Azure subject token from IMDS: HTTP 500"
+    assert exc_info.value.__cause__ is None
+
+
+@respx2.mock
+def test_gcp_id_token_provider_error_preserves_response() -> None:
+    respx2.get("http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity").mock(
+        return_value=httpx2.Response(404, text="Not Found")
+    )
+
+    provider = gcp_id_token_provider()
+
+    with pytest.raises(SubjectTokenProviderError) as exc_info:
+        provider["get_token"]()
+
+    assert exc_info.value.response is not None
+    assert exc_info.value.response.status_code == 404
+    assert str(exc_info.value) == "Failed to fetch GCP subject token from metadata server: HTTP 404"
+    assert exc_info.value.__cause__ is None
+
